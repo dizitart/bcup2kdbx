@@ -43,14 +43,25 @@ and text nodes; it never creates comment or processing-instruction nodes, and va
 values reach the document as text nodes, which are escaped. Neither vector is reachable
 through this tool.
 
-Overriding to `@xmldom/xmldom` 0.9.x breaks `kdbxweb`'s XML builder outright, and 0.8.x
-introduces a **data-fidelity regression**: it normalises `\r\n` to `\n` when reading values
-back, which 0.7.13 does not. Silently altering the contents of a password database is a
-worse outcome than carrying two unreachable advisories, so the override is deliberately not
-applied. `uuid` is overridden to `^11.1.1`, which clears its advisories with no behaviour
-change.
+Both advisories are first patched in 0.8.13. The entire 0.7.x line is unpatched and ended
+at 0.7.13, so there is no fix available inside the range `kdbxweb` accepts. The two ways
+out were both worse than the exposure:
 
-This decision will be revisited whenever `kdbxweb` widens its `@xmldom/xmldom` range.
+- **0.9.x** breaks `kdbxweb`'s XML builder outright — it throws on save.
+- **0.8.13+** works, but introduces a **data-fidelity regression**: it normalises `\r\n`
+  to `\n` when reading values back, which 0.7.13 does not. Silently altering the contents
+  of a password database is a worse outcome than carrying two unreachable advisories.
+
+`@xmldom/xmldom` is therefore **pinned to exactly `0.7.13`** in `overrides`, so the
+resolution is deterministic and cannot drift into either broken state through a transitive
+bump. The corresponding Dependabot alerts are dismissed as `not_used`, referencing this
+section.
+
+`uuid` is overridden to `^11.1.1`, which clears its advisories with no behaviour change.
+
+This decision will be revisited whenever `kdbxweb` widens its `@xmldom/xmldom` range. If
+you are auditing this project, that is the single line to watch:
+`kdbxweb`'s `dependencies["@xmldom/xmldom"]`, currently `^0.7.4`.
 
 ## What this tool does with your data
 

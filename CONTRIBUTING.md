@@ -83,10 +83,19 @@ tests, tag verification and a provenance attestation:
 
 ```bash
 npm login
-npm version 0.0.0 --no-git-tag-version
-npm publish --access public
-git checkout package.json package-lock.json   # discard the placeholder bump
+npm version 0.0.0 --no-git-tag-version --allow-same-version
+npm publish --access public --otp=<code-from-your-authenticator>
+npm version 1.0.0 --no-git-tag-version --allow-same-version
 ```
+
+If your npm account has 2FA enabled (it should), `--otp` is required — without it the
+publish fails with `EOTP`.
+
+Note that `publishConfig` deliberately does **not** set `"provenance": true`. Provenance
+needs a CI OIDC provider, so that flag makes any local publish fail with
+`Automatic provenance generation not supported for provider: null`. Trusted publishing
+attaches provenance automatically in CI, so the flag buys nothing and only breaks this
+one-time bootstrap.
 
 **2. Configure the trusted publisher.** On
 <https://www.npmjs.com/package/@dizitart/bcup2kdbx> → Settings → Trusted publishers, add a

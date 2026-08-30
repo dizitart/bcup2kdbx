@@ -56,12 +56,54 @@ jobs:
 
       # Catches a `files` list that forgets a source file, which would ship a
       # broken tarball that CI would otherwise never notice.
-      - name: Pack and smoke-test the tarball
+      - name: Pack and convert a vault with the packed CLI
         shell: bash
         run: |
+          set -euo pipefail
           npm pack --silent
-          mkdir -p /tmp/smoke && tar -xzf dizitart-bcup2kdbx-*.tgz -C /tmp/smoke
+          mkdir -p /tmp/smoke
+          tar -xzf dizitart-bcup2kdbx-*.tgz -C /tmp/smoke
           cd /tmp/smoke/package
           npm install --omit=dev --silent
-          node convert.js 2>&1 | grep -q 'Usage: bcup2kdbx'
-          echo "Packed CLI starts and prints usage."
+
+          # `node convert.js` with no arguments exits 1 by design, so capture
+          # rather than pipe - `pipefail` would read the usage exit as a failure.
+          usage="$(node convert.js 2>&1 || true)"
+          grep -q 'Usage: bcup2kdbx' <<<"$usage"
+
+          # Build a throwaway vault with the buttercup the tarball depends on,
+          # then convert it, so this proves the shipped package actually works.
+          node --input-type=module -e '
+            import { Credentials, FileDatasource, Vault, init } from "buttercup";
+            init();
+            const vault = Vault.createWithDefaults();
+            const entry = vault.createGroup("Smoke").createGroup("Nested").createEntry("Example");
+            entry.setProperty("username", "someone");
+            entry.setProperty("password", "s3cr3t");
+            entry.setPropertyValueType("password", "password");
+            const ds = new FileDatasource(
+              Credentials.fromDatasource({ type: "file", path: "/tmp/smoke/vault.bcup" }, "pw")
+            );
+            await ds.save(vault.format.history, Credentials.fromPassword("pw"));
+          '
+          printf 'pw\nout-pass\nout-pass\n' | node convert.js /tmp/smoke/vault.bcup /tmp/smoke/out.kdbx
+
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            import kdbxweb from "kdbxweb";
+            import { installArgon2 } from "./lib.js";
+            import assert from "node:assert/strict";
+            installArgon2();
+            const db = await kdbxweb.Kdbx.load(
+              new Uint8Array(readFileSync("/tmp/smoke/out.kdbx")).buffer,
+              new kdbxweb.Credentials(kdbxweb.ProtectedValue.fromString("out-pass"))
+            );
+            assert.equal(db.versionMajor, 4);
+            const find = (g) => g.name === "Nested" ? g : g.groups.map(find).find(Boolean);
+            const nested = find(db.getDefaultGroup());
+            assert.ok(nested, "nested group present");
+            const e = nested.entries[0];
+            assert.equal(e.fields.get("Title"), "Example");
+            assert.equal(e.fields.get("Password").getText(), "s3cr3t");
+            console.log("Packed CLI converted and verified a vault end to end.");
+          '

@@ -71,18 +71,26 @@ matches `package.json`, and publishes to npm using **trusted publishing (OIDC)**
 token exists anywhere in this repository. Provenance attestations are attached
 automatically.
 
-### One-time bootstrap
+### One-time bootstrap (first release only)
 
 npm cannot configure a trusted publisher for a package that does not exist yet, and OIDC
 cannot perform a package's very first publish (see
-[npm/cli#8544](https://github.com/npm/cli/issues/8544)). So the first release is manual:
+[npm/cli#8544](https://github.com/npm/cli/issues/8544)). Do this once, in order:
+
+**1. Create the package with a placeholder version.** Publishing a placeholder rather than
+the real `1.0.0` means the first real release still goes out through the workflow, with
+tests, tag verification and a provenance attestation:
 
 ```bash
+npm login
+npm version 0.0.0 --no-git-tag-version
 npm publish --access public
+git checkout package.json package-lock.json   # discard the placeholder bump
 ```
 
-Then, on <https://www.npmjs.com/package/@dizitart/bcup2kdbx> → Settings → Trusted
-publishers, add a GitHub Actions publisher with:
+**2. Configure the trusted publisher.** On
+<https://www.npmjs.com/package/@dizitart/bcup2kdbx> → Settings → Trusted publishers, add a
+GitHub Actions publisher:
 
 | Field | Value |
 | --- | --- |
@@ -92,7 +100,19 @@ publishers, add a GitHub Actions publisher with:
 | Environment name | `npm` |
 | Allowed actions | `npm publish` |
 
-Every release after that goes through the workflow with no token involved.
+**3. Remove your local publish token** so nothing can publish outside CI:
+
+```bash
+npm logout
+```
+
+**4. Tidy up** once `1.0.0` is out:
+
+```bash
+npm deprecate @dizitart/bcup2kdbx@0.0.0 "Placeholder used to bootstrap trusted publishing"
+```
+
+Every release from then on is just a GitHub Release — no token exists anywhere.
 
 ## Code of Conduct
 

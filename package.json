@@ -1,0 +1,62 @@
+{
+  "name": "@dizitart/bcup2kdbx",
+  "version": "1.0.0",
+  "description": "Convert a Buttercup vault (.bcup) into a KDBX 4 (KeePass) database, preserving groups, fields, attachments and trash",
+  "keywords": [
+    "buttercup",
+    "bcup",
+    "kdbx",
+    "kdbx4",
+    "keepass",
+    "keepassxc",
+    "password-manager",
+    "vault",
+    "migration",
+    "converter",
+    "cli"
+  ],
+  "homepage": "https://github.com/dizitart/bcup2kdbx#readme",
+  "bugs": {
+    "url": "https://github.com/dizitart/bcup2kdbx/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dizitart/bcup2kdbx.git"
+  },
+  "license": "Apache-2.0",
+  "author": "Dizitart",
+  "type": "module",
+  "exports": {
+    ".": "./lib.js"
+  },
+  "main": "./lib.js",
+  "bin": {
+    "bcup2kdbx": "./convert.js"
+  },
+  "files": [
+    "convert.js",
+    "lib.js",
+    "LICENSE",
+    "NOTICE",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "buttercup": "^7.7.1",
+    "hash-wasm": "^4.12.0",
+    "kdbxweb": "^2.1.1"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
+  }
+}

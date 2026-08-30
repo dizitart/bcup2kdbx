@@ -1,0 +1,32 @@
+name: Feature request
+description: Suggest a change to the conversion or the CLI
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This tool is intentionally small. The strongest case for a change is a piece of
+        vault data that currently does not survive the conversion.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: What is lost, wrong, or awkward today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What should happen instead?
+      description: >
+        If this is about field mapping, say exactly which Buttercup property should land in
+        which KDBX field, and which clients read it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

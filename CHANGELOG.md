@@ -36,11 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `uuid` overridden to `^11.1.1` to clear
   [GHSA-w5hq-g745-h8pq](https://github.com/advisories/GHSA-w5hq-g745-h8pq) in the
   transitive dependency tree.
-- `@xmldom/xmldom` pinned to exactly `0.7.13`. Both advisories against it are first patched
-  in 0.8.13, but 0.9.x breaks `kdbxweb`'s XML builder and 0.8.x silently normalises `\r\n`
-  to `\n` when reading values back. Neither advisory is reachable through this tool —
-  `kdbxweb` never serialises comment or processing-instruction nodes. See
-  [SECURITY.md](SECURITY.md) for the full analysis.
+- `@xmldom/xmldom` pinned to exactly `0.7.13`. Five advisories affect it, all first patched
+  in 0.8.12/0.8.13, but the 0.7.x line `kdbxweb` accepts ended at 0.7.13 with no fix: 0.9.x
+  breaks `kdbxweb`'s XML builder and 0.8.13+ silently normalises `\r\n` to `\n` when reading
+  values back. Four of the five are structurally unreachable here — `kdbxweb` never creates
+  comment, processing-instruction, CDATA or DocumentType nodes. The fifth is a recursion
+  DoS needing ~8000 levels of group nesting to crash a local CLI before it writes anything.
+  See [SECURITY.md](SECURITY.md) for the per-advisory assessment.
 
 [Unreleased]: https://github.com/dizitart/bcup2kdbx/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/dizitart/bcup2kdbx/releases/tag/v1.0.0

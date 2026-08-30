@@ -29,39 +29,57 @@ we appreciate a heads-up so we can pin or patch.
 
 ## Known advisories in the dependency tree
 
-`npm audit` reports two advisories against `@xmldom/xmldom` 0.7.x, which `kdbxweb` pins
-(`^0.7.4`) and uses to build the inner KDBX document:
+`npm audit` reports five advisories against `@xmldom/xmldom` 0.7.x, which `kdbxweb` pins
+(`^0.7.4`) and uses to build the inner KDBX document. Each was assessed against how
+`kdbxweb` actually uses the library, and the corresponding Dependabot alerts are dismissed
+with these reasons.
 
-- [GHSA-x6wf-f3px-wcqx](https://github.com/advisories/GHSA-x6wf-f3px-wcqx) — node injection
-  through unvalidated **processing instruction** serialization
-- [GHSA-j759-j44w-7fr8](https://github.com/advisories/GHSA-j759-j44w-7fr8) — node injection
-  through unvalidated **comment** serialization
+Four require serialising a node type that `kdbxweb` never creates. Its source contains zero
+references to `createComment`, `createProcessingInstruction`, `createCDATASection` or
+`createDocumentType`; the KDBX document is built exclusively from element and text nodes,
+and field values are escaped as text. They are **not reachable** through this tool:
 
-Both require the application to serialize a processing instruction or a comment node built
-from attacker-controlled input. `kdbxweb` builds the KDBX document exclusively from element
-and text nodes; it never creates comment or processing-instruction nodes, and vault field
-values reach the document as text nodes, which are escaped. Neither vector is reachable
-through this tool.
+| Advisory | Requires | Why it cannot happen here |
+| --- | --- | --- |
+| [GHSA-j759-j44w-7fr8](https://github.com/advisories/GHSA-j759-j44w-7fr8) | Serialising a **comment** node | `kdbxweb` never creates one |
+| [GHSA-x6wf-f3px-wcqx](https://github.com/advisories/GHSA-x6wf-f3px-wcqx) | Serialising a **processing instruction** | `kdbxweb` never creates one |
+| [GHSA-wh4c-j3r5-mjhp](https://github.com/advisories/GHSA-wh4c-j3r5-mjhp) | `]]>` inside a **CDATA section** | `kdbxweb` never creates one |
+| [GHSA-f6ww-3ggp-fr8h](https://github.com/advisories/GHSA-f6ww-3ggp-fr8h) | A **DocumentType** with controlled `internalSubset` / `publicId` / `systemId` | No DOCTYPE is emitted at all |
 
-Both advisories are first patched in 0.8.13. The entire 0.7.x line is unpatched and ended
-at 0.7.13, so there is no fix available inside the range `kdbxweb` accepts. The two ways
-out were both worse than the exposure:
+The test suite corroborates this: field values of `<!-- not a comment -->`,
+`<?xml-stylesheet href="x"?>` and `<![CDATA[oops]]>` all round-trip escaped as text.
+
+The fifth is different and is **reachable**, so it is recorded as tolerable risk rather
+than dismissed as unused:
+
+- [GHSA-2v35-w6hq-6mfw](https://github.com/advisories/GHSA-2v35-w6hq-6mfw) — uncontrolled
+  recursion in DOM traversal. `kdbxweb` does use `serializeToString`, `getElementsByTagName`
+  and `textContent`, so a `.bcup` with pathologically deep group nesting can exhaust the
+  call stack. Measured on this codebase: fine at 4000 levels of nesting, `RangeError` at
+  8000. The impact is a crash of a local, one-shot CLI acting on a file the user chose to
+  convert, and it fails before anything is written — no data loss, no code execution, no
+  privilege boundary crossed.
+
+### Why not just upgrade
+
+All five are first patched in 0.8.12/0.8.13. The 0.7.x line that `kdbxweb` accepts ended at
+0.7.13 with no fix, so there is no patched version inside its range. Both ways out are worse
+than the exposure above:
 
 - **0.9.x** breaks `kdbxweb`'s XML builder outright — it throws on save.
-- **0.8.13+** works, but introduces a **data-fidelity regression**: it normalises `\r\n`
-  to `\n` when reading values back, which 0.7.13 does not. Silently altering the contents
-  of a password database is a worse outcome than carrying two unreachable advisories.
+- **0.8.13+** works, but introduces a **data-fidelity regression**: it normalises `\r\n` to
+  `\n` when reading values back, which 0.7.13 does not. Silently altering the contents of a
+  password database is a worse outcome than the residual risk above.
 
-`@xmldom/xmldom` is therefore **pinned to exactly `0.7.13`** in `overrides`, so the
-resolution is deterministic and cannot drift into either broken state through a transitive
-bump. The corresponding Dependabot alerts are dismissed as `not_used`, referencing this
-section.
+`@xmldom/xmldom` is therefore **pinned to exactly `0.7.13`** in `overrides`, so resolution
+is deterministic and cannot drift into either broken state through a transitive bump.
 
 `uuid` is overridden to `^11.1.1`, which clears its advisories with no behaviour change.
 
-This decision will be revisited whenever `kdbxweb` widens its `@xmldom/xmldom` range. If
-you are auditing this project, that is the single line to watch:
-`kdbxweb`'s `dependencies["@xmldom/xmldom"]`, currently `^0.7.4`.
+This will be revisited whenever `kdbxweb` widens its range. If you are auditing this
+project, that is the single line to watch: `kdbxweb`'s `dependencies["@xmldom/xmldom"]`,
+currently `^0.7.4`. A `kdbxweb` release that accepts 0.9.x and works with it clears all five
+at once.
 
 ## What this tool does with your data
 

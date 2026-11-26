@@ -71,10 +71,12 @@ function closePrompt() {
 }
 
 // kdbxweb reads the inner KDBX document through xmldom, which drops tab
-// characters from text nodes on load. The bytes written to disk keep them -
-// kdbxweb's serialiser emits `<Value>a\tb</Value>` verbatim - so a value that
-// matches only after this normalisation was written correctly and read back
-// lossily, not lost. Compare through it rather than reporting a false failure.
+// characters from text nodes on load and normalises CR and CRLF to LF (XML 1.0
+// section 2.11 end-of-line handling). The bytes written to disk keep them -
+// kdbxweb's serialiser emits `<Value>a\tb\r\nc</Value>` verbatim, which test.js
+// checks against the raw inner XML - so a value that matches only after this
+// normalisation was written correctly and read back lossily, not lost. Compare
+// through it rather than reporting a false failure.
 function normaliseXmlText(value) {
     return value.replace(/\r\n?/g, "\n").replace(/\t/g, "");
 }

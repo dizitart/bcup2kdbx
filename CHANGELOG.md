@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- `@xmldom/xmldom` override moved from `0.7.13` to exactly `0.8.15`, clearing all fifteen
+  advisories `npm audit` reports against `<=0.8.14`. The `\r\n` normalisation that kept the
+  previous pin affects only how values are read back, not what is written: tabs, CR and
+  CRLF reach the KDBX file byte for byte under both versions. `npm test` now checks the raw
+  decrypted XML for this directly. See [SECURITY.md](SECURITY.md).
+- Documented the `minimatch` advisory (GHSA-g3hv-75wg-m249) reached via `buttercup` →
+  `webdav`; it is not reachable because only the local file vault source is used.
+
 ## [1.0.0] - 2026-08-30
 
 ### Added

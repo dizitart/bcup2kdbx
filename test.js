@@ -153,10 +153,28 @@ async function run() {
         writeFileSync(kdbxPath, Buffer.from(await db.save()));
 
         // Reload from disk with a fresh credentials object - proves the bytes
-        // on disk are a real, decryptable KDBX4 file.
-        const reloaded = await kdbxweb.Kdbx.load(
-            new Uint8Array(readFileSync(kdbxPath)).buffer,
-            new kdbxweb.Credentials(kdbxweb.ProtectedValue.fromString(KDBX_PASS))
+        // on disk are a real, decryptable KDBX4 file. The decrypted inner XML is
+        // captured on the way in so the written bytes can be checked directly,
+        // independent of how the XML reader normalises them.
+        const parseXml = kdbxweb.XmlUtils.parse;
+        let innerXml = null;
+        kdbxweb.XmlUtils.parse = (xml) => {
+            innerXml = xml;
+            return parseXml(xml);
+        };
+        let reloaded;
+        try {
+            reloaded = await kdbxweb.Kdbx.load(
+                new Uint8Array(readFileSync(kdbxPath)).buffer,
+                new kdbxweb.Credentials(kdbxweb.ProtectedValue.fromString(KDBX_PASS))
+            );
+        } finally {
+            kdbxweb.XmlUtils.parse = parseXml;
+        }
+        assert.ok(innerXml, "captured the decrypted inner XML");
+        assert.ok(
+            innerXml.includes("line1\nline2\ttab\r\ncrlf"),
+            "tab and CRLF are written to the KDBX file byte for byte"
         );
 
         assert.equal(reloaded.versionMajor, 4, "must be KDBX 4");
@@ -231,14 +249,15 @@ async function run() {
         assert.equal(fieldText(nastyEntry, "Title"), 'qu"ote & <tag>');
         assert.equal(fieldText(nastyEntry, "UserName"), 'a<b>c&d"e\'f');
         assert.equal(fieldText(nastyEntry, "Password"), ']]>\'"&<>\\`$(){}[]');
-        // Tabs are written to the file intact (kdbxweb's serialiser emits them
-        // verbatim) but kdbxweb's own xmldom-based reader drops them on load, so
-        // that is what we can observe here. CR survives with xmldom 0.7.x.
-        // Unicode, astral-plane characters and newlines must be exact.
+        // Tabs and CRs are written to the file intact (kdbxweb's serialiser emits
+        // them verbatim; the raw-XML check below proves it) but kdbxweb's own
+        // xmldom-based reader drops tabs and normalises CR/CRLF to LF on load, as
+        // XML 1.0 section 2.11 requires of a conforming parser, so that is what we
+        // observe here. Unicode, astral-plane characters and newlines must be exact.
         assert.equal(
             fieldText(nastyEntry, "Notes"),
-            "line1\nline2tab\r\ncrlf \u00e9\u4e2d\u6587 \ud83d\udd11",
-            "notes round-trip apart from the reader's known tab handling"
+            "line1\nline2tab\ncrlf \u00e9\u4e2d\u6587 \ud83d\udd11",
+            "notes round-trip apart from the reader's known tab/CR handling"
         );
         assert.equal(fieldText(nastyEntry, "cdata trap"), "<![CDATA[oops]]>");
         assert.equal(fieldText(nastyEntry, "pi trap"), '<?xml-stylesheet href="x"?>');

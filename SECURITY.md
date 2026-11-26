@@ -29,57 +29,41 @@ we appreciate a heads-up so we can pin or patch.
 
 ## Known advisories in the dependency tree
 
-`npm audit` reports five advisories against `@xmldom/xmldom` 0.7.x, which `kdbxweb` pins
-(`^0.7.4`) and uses to build the inner KDBX document. Each was assessed against how
-`kdbxweb` actually uses the library, and the corresponding Dependabot alerts are dismissed
-with these reasons.
+### `@xmldom/xmldom`
 
-Four require serialising a node type that `kdbxweb` never creates. Its source contains zero
-references to `createComment`, `createProcessingInstruction`, `createCDATASection` or
-`createDocumentType`; the KDBX document is built exclusively from element and text nodes,
-and field values are escaped as text. They are **not reachable** through this tool:
+`kdbxweb` declares `@xmldom/xmldom` `^0.7.4` and uses it to build and parse the inner KDBX
+document. The 0.7.x line ended at 0.7.13 with no fixes, and every published advisory against
+`<=0.8.14` is patched in **0.8.15**, so `@xmldom/xmldom` is **overridden to exactly `0.8.15`**.
+`npm audit` reports no `@xmldom/xmldom` advisories with this override.
 
-| Advisory | Requires | Why it cannot happen here |
-| --- | --- | --- |
-| [GHSA-j759-j44w-7fr8](https://github.com/advisories/GHSA-j759-j44w-7fr8) | Serialising a **comment** node | `kdbxweb` never creates one |
-| [GHSA-x6wf-f3px-wcqx](https://github.com/advisories/GHSA-x6wf-f3px-wcqx) | Serialising a **processing instruction** | `kdbxweb` never creates one |
-| [GHSA-wh4c-j3r5-mjhp](https://github.com/advisories/GHSA-wh4c-j3r5-mjhp) | `]]>` inside a **CDATA section** | `kdbxweb` never creates one |
-| [GHSA-f6ww-3ggp-fr8h](https://github.com/advisories/GHSA-f6ww-3ggp-fr8h) | A **DocumentType** with controlled `internalSubset` / `publicId` / `systemId` | No DOCTYPE is emitted at all |
+Earlier releases pinned 0.7.13 because 0.8.13+ normalises `\r\n` to `\n` when reading
+values back. That turned out to affect only the read path. Both versions make `kdbxweb`
+write tabs, CR and CRLF to the file byte for byte; the only difference on disk is that 0.8.x
+also escapes `>`, which is equivalent XML. On load, 0.8.x applies XML 1.0 §2.11 end-of-line
+handling (CR and CRLF become LF), which a conforming XML parser in any KeePass client is
+required to do as well. In this tool the reader only runs in the post-write verification
+pass, which already compares through that normalisation. `npm test` asserts both sides:
+the raw decrypted XML keeps `\t` and `\r\n`, and the reloaded value is normalised.
 
-The test suite corroborates this: field values of `<!-- not a comment -->`,
-`<?xml-stylesheet href="x"?>` and `<![CDATA[oops]]>` all round-trip escaped as text.
+The exact pin stays deliberate. **0.9.x** breaks `kdbxweb`'s XML builder (it throws on
+save), so resolution must not drift there through a transitive bump. Do not run
+`npm audit fix --force`: it downgrades `kdbxweb` and `buttercup`.
 
-The fifth is different and is **reachable**, so it is recorded as tolerable risk rather
-than dismissed as unused:
+If you are auditing this project, the line to watch is `kdbxweb`'s
+`dependencies["@xmldom/xmldom"]`, currently `^0.7.4`. A `kdbxweb` release that accepts and
+works with a newer line makes the override unnecessary.
 
-- [GHSA-2v35-w6hq-6mfw](https://github.com/advisories/GHSA-2v35-w6hq-6mfw) — uncontrolled
-  recursion in DOM traversal. `kdbxweb` does use `serializeToString`, `getElementsByTagName`
-  and `textContent`, so a `.bcup` with pathologically deep group nesting can exhaust the
-  call stack. Measured on this codebase: fine at 4000 levels of nesting, `RangeError` at
-  8000. The impact is a crash of a local, one-shot CLI acting on a file the user chose to
-  convert, and it fails before anything is written — no data loss, no code execution, no
-  privilege boundary crossed.
+### `minimatch`
 
-### Why not just upgrade
+[GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249) (globparts DoS)
+reaches the tree through `buttercup` → `webdav`. `webdav` is only instantiated for WebDAV
+vault sources; this tool always opens the vault as a local `file` source, so the vulnerable
+code is **not reachable**. npm's only offered fix is a `buttercup` downgrade, which is not
+taken.
 
-All five are first patched in 0.8.12/0.8.13. The 0.7.x line that `kdbxweb` accepts ended at
-0.7.13 with no fix, so there is no patched version inside its range. Both ways out are worse
-than the exposure above:
-
-- **0.9.x** breaks `kdbxweb`'s XML builder outright — it throws on save.
-- **0.8.13+** works, but introduces a **data-fidelity regression**: it normalises `\r\n` to
-  `\n` when reading values back, which 0.7.13 does not. Silently altering the contents of a
-  password database is a worse outcome than the residual risk above.
-
-`@xmldom/xmldom` is therefore **pinned to exactly `0.7.13`** in `overrides`, so resolution
-is deterministic and cannot drift into either broken state through a transitive bump.
+### `uuid`
 
 `uuid` is overridden to `^11.1.1`, which clears its advisories with no behaviour change.
-
-This will be revisited whenever `kdbxweb` widens its range. If you are auditing this
-project, that is the single line to watch: `kdbxweb`'s `dependencies["@xmldom/xmldom"]`,
-currently `^0.7.4`. A `kdbxweb` release that accepts 0.9.x and works with it clears all five
-at once.
 
 ## What this tool does with your data
 
